@@ -63,22 +63,13 @@ setInterval(updateTVL, 20000); updateTVL()
 document.getElementById("connect").onclick = async () => {
   await client.connect()
   
-  // Универсальный QR для Xaman
-  const uri = 'xumm://xumm-app/signin?origin=https://natureinitiation.github.io/ripple-swap&redirect=https://natureinitiation.github.io/ripple-swap'
+  // Генерируем QR для Xaman sign-in
+  const uri = 'xumm://xumm-app/signin?origin=https://natureinitiation.github.io/ripple-swap'
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(uri)}`
   
-  document.getElementById("qr").innerHTML = `<img src="${qrUrl}" style="border-radius:12px"><p>Сканируй в Xaman</p>`
+  document.getElementById("qr").innerHTML = `<img src="${qrUrl}" style="border-radius:12px"><p>Сканируй в Xaman (скриншот → Import from Gallery)</p>`
   document.getElementById("qr").style.display = "block"
   log("QR готов — скан из галереи")
-  
-  // Fallback: ручной ввод seed для теста (НЕ для mainnet!)
-  const seed = prompt("Для теста: seed (sEd...)? Только testnet!")
-  if (seed) {
-    wallet = xrpl.Wallet.fromSeed(seed)
-    document.getElementById("connect").textContent = "Connected (test) " + wallet.address.slice(0,10)+"…"
-    document.getElementById("actions").style.display = "block"
-    log("Тест подключён")
-  }
 }
 
 function log(t) {
