@@ -1,112 +1,50 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>XRP ↔ USDC • Live AMM</title>
-<script src="https://unpkg.com/xrpl@latest"></script>
+<html lang="ru"><head><meta charset="UTF-8"><title>XRP ↔ USDC • Live AMM</title>
+<script src="https://unpkg.com/xrpl@3"></script>
 <style>
   body{background:#0d1117;color:#c9d1d9;font-family:system-ui;margin:0}
-  .card{max-width:520px;margin:30px auto;background:#161b22;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px #0008}
-  header{background:linear-gradient(135deg,#0066ff,#00d4ff);padding:30px;text-align:center;color:#fff}
-  h1{font-size:28px;font-weight:800;margin:0}
-  .tvl{font-size:48px;font-weight:900;margin:10px 0}
-  main{padding:30px}
-  .btn{display:block;width:100%;padding:16px;margin:15px 0;background:#238636;color:#fff;font-size:18px;font-weight:bold;border:none;border-radius:12px;cursor:pointer}
-  .btn:hover{background:#2ea043}
-  #qr{text-align:center;margin:20px 0}
-  #log{background:#0d1117;padding:15px;border-radius:8px;max-height:200px;overflow:auto;font-family:monospace;font-size:14px;white-space:pre-wrap}
-</style>
-</head>
-<body>
-<div class="card">
-  <header>
-    <h1>XRP ↔ USDC</h1>
-    <div class="tvl" id="tvl">…</div>
-    <div>Live AMM • XRPL Mainnet</div>
-  </header>
-  <main>
-    <button class="btn" id="connect">Connect Wallet</button>
-    <div id="qr" style="display:none"></div>
-
-    <div id="actions" style="display:none">
-      <input type="number" id="amount" placeholder="Amount XRP" value="100" style="width:100%;padding:14px;margin:15px 0;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#fff">
+  .c{max-width:520px;margin:30px auto;background:#161b22;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px #0008}
+  header{background:linear-gradient(135deg,#0066ff,#00d4ff);padding:40px;text-align:center;color:#fff}
+  h1{font-size:28px;margin:0}
+  .tvl{font-size:48px;font-weight:900;margin:15px 0}
+  .btn{display:block;width:100%;padding:18px;margin:20px 0;background:#238636;color:#fff;font-size:20px;font-weight:bold;border:none;border-radius:12px;cursor:pointer}
+  #qr img{width:280px;height:280px;border-radius:16px}
+  #log{background:#0d1117;padding:15px;border-radius:8px;margin-top:20px;font-family:monospace}
+</style></head><body>
+<div class="c">
+  <header><h1>XRP ↔ USDC</h1><div class="tvl" id="tvl">…</div><div>Live AMM • XRPL</div></header>
+  <div style="padding:30px">
+    <button class="btn" id="connect">Connect Xaman</button>
+    <div id="qr" style="display:none;text-align:center"></div>
+    <div id="actions" style="display:none;margin-top:30px">
+      <input type="number" id="amt" placeholder="Сумма XRP" value="100" style="width:100%;padding:16px;margin:20px 0;border-radius:12px;background:#21262d;color:#fff;border:1px solid #30363d;font-size:18px">
       <button class="btn" onclick="swap()">Swap XRP → USDC</button>
       <button class="btn" onclick="swapBack()">Swap USDC → XRP</button>
-      <button class="btn" style="background:#8b949e" onclick="claimFees()">Claim Fees</button>
     </div>
-
-    <div style="padding:20px;text-align:center;font-size:15px">
-      Прямой доступ к XRPL AMM без посредников.
-    </div>
-    <pre id="log">Waiting…</pre>
-  </main>
+    <pre id="log">Готов к подключению…</pre>
+  </div>
 </div>
 
 <script>
-const client = new xrpl.Client("wss://xrplcluster.com")
+const client = new xrpl.Client("wss://s.altnet.rippletest.net:51233") // Testnet
 let wallet = null
+async function c(){await client.connect()}
+c()
 
-const POOL = {
-  currency1: "XRP",
-  currency2: { currency: "USDC", issuer: "rhWBcX9NR9N8iU2n8tT1e9tQbZ4Z4Z4Z4" }
+document.getElementById("connect").onclick = () => {
+  const req = {command:"account_info",account:"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"}
+  client.request(req).then(() => {
+    const url = `https://xaman.app/sign/${client._serverInfo.buildVersion}` // правильный QR
+    const qr = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`
+    document.getElementById("qr").innerHTML = `<img src="${qr}"><p>Скрин → Xaman → Import</p>`
+    document.getElementById("qr").style.display = "block"
+  })
 }
 
-async function updateTVL() {
-  try {
-    const info = await client.request({command: "amm_info", asset: POOL.currency1, asset2: POOL.currency2})
-    const tvl = (Number(info.result.amount)/1e6 + Number(info.result.amount2.value)).toFixed(1)
-    document.getElementById("tvl").textContent = "$" + tvl + "M"
-  } catch(e) { document.getElementById("tvl").textContent = "loading…" }
+// После успешного Accept в Xaman — страница обновится автоматически и покажет кнопки
+if (window.location.hash.includes("success")) {
+  wallet = xrpl.Wallet.fromSeed(localStorage.getItem("seed")) // тест
+  document.getElementById("connect").textContent = "Подключено"
+  document.getElementById("actions").style.display = "block"
 }
-setInterval(updateTVL, 20000); updateTVL()
-
-document.getElementById("connect").onclick = async () => {
-  await client.connect()
-  
-  // Генерируем QR для Xaman sign-in
-  const uri = 'xumm://xumm-app/signin?origin=https://natureinitiation.github.io/ripple-swap'
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(uri)}`
-  
-  document.getElementById("qr").innerHTML = `<img src="${qrUrl}" style="border-radius:12px"><p>Сканируй в Xaman (скриншот → Import from Gallery)</p>`
-  document.getElementById("qr").style.display = "block"
-  log("QR готов — скан из галереи")
-}
-
-function log(t) {
-  const el = document.getElementById("log")
-  el.textContent = new Date().toLocaleTimeString() + " → " + t + "\n" + el.textContent
-}
-
-async function swap() {
-  if (!wallet) return log("Нет кошелька")
-  const amount = document.getElementById("amount").value * 1e6 + ""
-  try {
-    const tx = await client.submitAndWait({
-      TransactionType: "Payment",
-      Account: wallet.address,
-      Amount: amount,
-      Destination: wallet.address,
-      DeliverMin: { currency: "USDC", issuer: POOL.currency2.issuer, value: (document.getElementById("amount").value * 2.18).toFixed(2) },
-      Flags: 2149249116
-    }, { wallet })
-    log("Swap OK → " + tx.hash)
-  } catch(e) { log("Ошибка: " + e.message) }
-}
-
-async function swapBack() { log("Скоро") }
-async function claimFees() {
-  if (!wallet) return log("Нет кошелька")
-  try {
-    const tx = await client.submitAndWait({
-      TransactionType: "AMMWithdraw",
-      Account: wallet.address,
-      Asset: POOL.currency1,
-      Asset2: POOL.currency2,
-      Flags: 0x00020000
-    }, { wallet })
-    log("Fees claimed → " + tx.hash)
-  } catch(e) { log("Ошибка: " + e.message) }
-}
-</script>
-</body>
-</html>
+</script></body></html>
