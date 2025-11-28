@@ -25,7 +25,7 @@
     <div>Live AMM • XRPL Mainnet</div>
   </header>
   <main>
-    <button class="btn" id="connect">Connect Wallet (Xaman or any wallet)</button>
+    <button class="btn" id="connect">Connect Wallet</button>
     <div id="qr" style="display:none"></div>
 
     <div id="actions" style="display:none">
@@ -36,8 +36,7 @@
     </div>
 
     <div style="padding:20px;text-align:center;font-size:15px">
-      Работает в любом браузере + внутри Xaman<br>
-      Никаких серверов — чистый XRPL
+      Прямой доступ к XRPL AMM без посредников.
     </div>
     <pre id="log">Waiting…</pre>
   </main>
@@ -64,60 +63,58 @@ setInterval(updateTVL, 20000); updateTVL()
 document.getElementById("connect").onclick = async () => {
   await client.connect()
   
-  // Попробуем Xaman
-  if (window.xaman) {
-    const resp = await window.xaman.signIn()
-    wallet = resp.wallet
-  } 
-  // Иначе — универсальный QR
-  else {
-    const payload = await client.request({
-      command: "account_info",
-      account: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", // любой адрес, просто для генерации QR
-      ledger_index: "validated"
-    })
-    const qr = `xumm:xumm.sign?account=${payload.result.account_data.Account}`
-    document.getElementById("qr").innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}" style="border-radius:12px">`
-    document.getElementById("qr").style.display = "block"
-    log("Отсканируй QR в Xaman")
-    return
-  }
-
-  if (wallet) {
-    document.getElementById("connect").textContent = "Connected " + wallet.address.slice(0,10)+"…"
+  // Универсальный QR для Xaman
+  const uri = 'xumm://xumm-app/signin?origin=https://natureinitiation.github.io/ripple-swap&redirect=https://natureinitiation.github.io/ripple-swap'
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(uri)}`
+  
+  document.getElementById("qr").innerHTML = `<img src="${qrUrl}" style="border-radius:12px"><p>Сканируй в Xaman</p>`
+  document.getElementById("qr").style.display = "block"
+  log("QR готов — скан из галереи")
+  
+  // Fallback: ручной ввод seed для теста (НЕ для mainnet!)
+  const seed = prompt("Для теста: seed (sEd...)? Только testnet!")
+  if (seed) {
+    wallet = xrpl.Wallet.fromSeed(seed)
+    document.getElementById("connect").textContent = "Connected (test) " + wallet.address.slice(0,10)+"…"
     document.getElementById("actions").style.display = "block"
-    log("Подключено")
+    log("Тест подключён")
   }
 }
 
 function log(t) {
-  document.getElementById("log").textContent = new Date().toLocaleTimeString() + " → " + t + "\n" + document.getElementById("log").textContent
+  const el = document.getElementById("log")
+  el.textContent = new Date().toLocaleTimeString() + " → " + t + "\n" + el.textContent
 }
 
-// Остальные функции swap/swapBack/claimFees оставляем как были раньше
 async function swap() {
+  if (!wallet) return log("Нет кошелька")
   const amount = document.getElementById("amount").value * 1e6 + ""
-  const tx = await client.submitAndWait({
-    TransactionType: "Payment",
-    Account: wallet.address,
-    Amount: amount,
-    Destination: wallet.address,
-    DeliverMin: { currency: "USDC", issuer: POOL.currency2.issuer, value: (document.getElementById("amount").value * 2.18).toFixed(2) },
-    Flags: 2149249116
-  }, { wallet })
-  log("Swap OK → " + tx.hash)
+  try {
+    const tx = await client.submitAndWait({
+      TransactionType: "Payment",
+      Account: wallet.address,
+      Amount: amount,
+      Destination: wallet.address,
+      DeliverMin: { currency: "USDC", issuer: POOL.currency2.issuer, value: (document.getElementById("amount").value * 2.18).toFixed(2) },
+      Flags: 2149249116
+    }, { wallet })
+    log("Swap OK → " + tx.hash)
+  } catch(e) { log("Ошибка: " + e.message) }
 }
 
-async function swapBack() { alert("Скоро добавлю") }
+async function swapBack() { log("Скоро") }
 async function claimFees() {
-  const tx = await client.submitAndWait({
-    TransactionType: "AMMWithdraw",
-    Account: wallet.address,
-    Asset: POOL.currency1,
-    Asset2: POOL.currency2,
-    Flags: 0x00020000
-  }, { wallet })
-  log("Fees claimed → " + tx.hash)
+  if (!wallet) return log("Нет кошелька")
+  try {
+    const tx = await client.submitAndWait({
+      TransactionType: "AMMWithdraw",
+      Account: wallet.address,
+      Asset: POOL.currency1,
+      Asset2: POOL.currency2,
+      Flags: 0x00020000
+    }, { wallet })
+    log("Fees claimed → " + tx.hash)
+  } catch(e) { log("Ошибка: " + e.message) }
 }
 </script>
 </body>
